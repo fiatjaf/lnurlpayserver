@@ -1,0 +1,45 @@
+<!-- @format -->
+
+<script>
+  import {onMount, setContext} from 'svelte'
+  import {NotificationDisplay, notifier} from '@beyonk/svelte-notifications'
+  import Router from 'svelte-spa-router'
+
+  import NotFound from './NotFound.html'
+  import Register from './Register.html'
+  import Shop from './Shop.html'
+  import Template from './Template.html'
+  import Invoice from './Invoice.html'
+
+  setContext('notifier', notifier)
+
+  const routes = {
+    '/': Home,
+    '/register': Register,
+    '/shop/:shopId': Shop,
+    '/shop/:shopId/template/:templateid': Template,
+    '/invoice/:invoiceid': Invoice,
+    '*': NotFound
+  }
+</script>
+
+<NotificationDisplay />
+
+<header>
+  <h1>lnurlpayserver</h1>
+</header>
+<nav>
+  <a href="#/"> <img alt="lnurlpayserver logo" src=/static/logo.png></a>
+  <a href="#/contracts">list contracts</a>
+  <a href="#/create">create</a>
+  <a href="#/refunds">refunds</a>
+  <a href="#/docs">docs</a>
+</nav>
+<main><Router {routes} /></main>
+<footer>
+  <p>
+    powered by <a href="https://github.com/fiatjaf/awesome-lnurl/">lnurl</a>
+  </p>
+</footer>
+
+<style></style>

@@ -1,0 +1,7 @@
+public/bundle.*
+*.env
+*.swo
+*.swp
+node_modules
+bindata.go
+lnurlpayserver
