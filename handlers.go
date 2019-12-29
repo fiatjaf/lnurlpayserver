@@ -121,8 +121,8 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 		_, err = txn.Exec(`
           INSERT INTO backend (id, kind, connection)
           VALUES ($1, $2, $3)
-          ON CONFLICT DO UPDATE SET
-            kind = $2
+          ON CONFLICT (id) DO UPDATE SET
+            kind = $2,
             connection = $3
         `, backend.Id, backend.Kind, backend.Connection)
 		if err != nil {
@@ -130,9 +130,12 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 				Msg("invalid backend upsert")
 			w.WriteHeader(400)
 			json.NewEncoder(w).Encode(Response{false, "missing data or key or backend"})
+			return
 		}
 
-		backendMatchesShop = existingShop.Backend == backend.Id
+		if shopExists {
+			backendMatchesShop = existingShop.Backend == backend.Id
+		}
 
 		// will always update backend (or leave unchanged)
 		shop.Backend = backend.Id
@@ -152,6 +155,7 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 			Msg("invalid shop set action")
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(Response{false, "missing data or key or backend"})
+		return
 	}
 
 	// insert or update while also updating backend
@@ -180,8 +184,9 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 
 	// key will be created automatically if shop is new
 	if shop.Key != "" {
-		err = pg.Get(&shop.Key, `SELECT key FROM shop WHERE id = $1`, shop.Id)
+		err = txn.Get(&shop.Key, `SELECT key FROM shop WHERE id = $1`, shop.Id)
 		if err != nil {
+			log.Error().Err(err).Str("shop", shop.Id).Msg("got no key for shop")
 			json.NewEncoder(w).Encode(Response{false, err.Error()})
 			return
 		}
@@ -320,8 +325,7 @@ func listInvoices(w http.ResponseWriter, r *http.Request) {
 	err := pg.Select(`
       SELECT `+INVOICEFIELDS+`
       FROM invoice
-      INNER JOIN template ON template.id = invoice.template
-      WHERE t.shop = $1
+      WHERE invoice.shop = $1
     `, shop.Id)
 	if err != nil {
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
@@ -339,9 +343,8 @@ func getInvoice(w http.ResponseWriter, r *http.Request) {
 	err := pg.Select(`
       SELECT `+INVOICEFIELDS+`
       FROM invoice
-      INNER JOIN template AS t ON template.id = invoice.template
-      WHERE hash = $1
-        AND t.shop = $2
+      WHERE invoice.hash = $1
+        AND invoice.shop = $2
     `, hash, shop.Id)
 	if err != nil {
 		json.NewEncoder(w).Encode(Response{false, err.Error()})

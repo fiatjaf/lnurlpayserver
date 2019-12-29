@@ -4,17 +4,23 @@ CREATE TABLE backend (
   connection jsonb NOT NULL,
 
   CONSTRAINT connection_valid CHECK (
-    char_length(connection::text) < 500
+    char_length(connection::text) < 2000
     AND (
       (kind = 'spark' AND (
         jsonb_typeof(connection->'endpoint') = 'string' AND
         jsonb_typeof(connection->'key') = 'string' AND
-        jsonb_typeof(connection->'cert') = 'string'
+        CASE WHEN connection ? 'cert'
+          THEN jsonb_typeof(connection->'cert') = 'string'
+          ELSE true
+        END
       )) OR
       (kind = 'lnd' AND (
         jsonb_typeof(connection->'endpoint') = 'string' AND
         jsonb_typeof(connection->'macaroon') = 'string' AND
-        jsonb_typeof(connection->'cert') = 'string'
+        CASE WHEN connection ? 'cert'
+          THEN jsonb_typeof(connection->'cert') = 'string'
+          ELSE true
+        END
       )) OR
       (kind = 'lntxbot' AND (
         jsonb_typeof(connection->'key') = 'string'
@@ -29,8 +35,8 @@ CREATE TABLE shop (
   key text NOT NULL DEFAULT md5(random()::text),
   message text,
 
-  -- {"kind": "none"},
-  -- {"kind": "sequential", "init": 0},
+  -- {"kind": "none"}
+  -- {"kind": "sequential", "init": 0, "words": ["pluc", "plec", "plic"]})
   -- {"kind": "hmac", "interval": 5, "key": "..."} (interval in minutes)
   verification jsonb NOT NULL DEFAULT '{"kind": "none"}',
 
@@ -41,8 +47,17 @@ CREATE TABLE shop (
     char_length(verification::text) < 30
     AND (
       (verification->>'kind' = 'none') OR
-      (verification->>'kind' = 'sequential' AND jsonb_typeof(verification->'init') = 'number') OR
-      (verification->>'kind' = 'hmac' AND jsonb_typeof(verification->'interval') = 'number' AND jsonb_typeof(verification->'key') = 'string')
+      (verification->>'kind' = 'sequential' AND
+        jsonb_typeof(verification->'init') = 'number' AND
+        CASE WHEN verification ? 'words'
+          THEN jsonb_typeof(verification->'words') = 'array'
+          ELSE true
+        END
+      ) OR
+      (verification->>'kind' = 'hmac' AND
+        jsonb_typeof(verification->'interval') = 'number' AND
+        jsonb_typeof(verification->'key') = 'string'
+      )
     )
   )
 );
@@ -62,8 +77,8 @@ CREATE TABLE template (
 
   PRIMARY KEY (shop, id),
   CONSTRAINT arrays CHECK (
-    jsonb_typeof(path_params->'array') AND
-    jsonb_typeof(query_params->'array')
+    jsonb_typeof(path_params) = 'array' AND
+    jsonb_typeof(query_params) = 'array'
   ),
   CONSTRAINT currency_check CHECK (
     currency IN ('sat', 'eur', 'usd', 'gbp', 'cad', 'jpy')
@@ -84,9 +99,12 @@ CREATE TABLE template (
 CREATE TABLE invoice (
   hash text PRIMARY KEY,
   preimage text UNIQUE NOT NULL,
-  template text NOT NULL REFERENCES template (id),
+  shop text NOT NULL,
+  template text NOT NULL,
   creation timestamp NOT NULL DEFAULT now(),
   payment timestamp, -- null when not paid
   amount_msat numeric(13) NOT NULL,
   bolt11 text NOT NULL,
+
+  FOREIGN KEY (shop, template) REFERENCES template (shop, id)
 );

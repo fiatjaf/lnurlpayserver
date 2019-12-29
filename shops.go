@@ -51,16 +51,21 @@ func (shop *Shop) MakeSuccessAction(
 			return nil, nil
 		}
 	case "sequential":
-		init := v.Get("init").Int()
 		// count all invoices paid today
-		var seq int64
+		var seq int
 		err = pg.Get(&seq, `
           SELECT count(*) FROM invoice
-          INNER JOIN invoice.template = template.id
-          WHERE template.shop = $1
+          WHERE invoice.shop = $1
             AND payment > current_date
         `, shop.Id)
-		code := fmt.Sprintf("%d", init+seq)
+		seq += int(v.Get("init").Int())
+
+		code := fmt.Sprintf("%d", seq)
+		if v.Get("words").Exists() {
+			words := v.Get("words").Array()
+			code = words[seq%len(words)].String()
+		}
+
 		return lnurl.AESAction(message, key, code)
 	case "hmac":
 		// produce a secret code valid for this shop every x minutes

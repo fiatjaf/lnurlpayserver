@@ -5,11 +5,12 @@
   import {NotificationDisplay, notifier} from '@beyonk/svelte-notifications'
   import Router from 'svelte-spa-router'
 
-  import NotFound from './NotFound.html'
+  import Home from './Home.html'
   import Register from './Register.html'
   import Shop from './Shop.html'
   import Template from './Template.html'
   import Invoice from './Invoice.html'
+  import NotFound from './NotFound.html'
 
   setContext('notifier', notifier)
 
@@ -29,11 +30,8 @@
   <h1>lnurlpayserver</h1>
 </header>
 <nav>
-  <a href="#/"> <img alt="lnurlpayserver logo" src=/static/logo.png></a>
-  <a href="#/contracts">list contracts</a>
-  <a href="#/create">create</a>
-  <a href="#/refunds">refunds</a>
-  <a href="#/docs">docs</a>
+  <a href="#/"><img alt="lnurlpayserver logo" src=/public/logo.png></a>
+  <a href="#/"></a>
 </nav>
 <main><Router {routes} /></main>
 <footer>
@@ -42,4 +40,11 @@
   </p>
 </footer>
 
-<style></style>
+<style>
+  nav {
+    display: flex;
+  }
+  img {
+    max-height: 40px;
+  }
+</style>

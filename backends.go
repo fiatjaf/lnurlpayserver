@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -44,8 +45,10 @@ func (b Backend) Conn() gjson.Result {
 }
 
 func (b *Backend) GetId() error {
+	useless := make([]byte, 32)
+	rand.Read(useless)
 	nothing := sha256.Sum256([]byte{0})
-	bolt11, err := b.MakeInvoice(1000, nothing, nothing[:], 600)
+	bolt11, err := b.MakeInvoice(1000, nothing, useless, 600)
 	if err != nil {
 		return err
 	}
@@ -83,7 +86,7 @@ func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry
 	b64h := base64.StdEncoding.EncodeToString(h[:])
 
 	switch b.Kind {
-	case "sparko":
+	case "spark":
 		spark := &lightning.Client{
 			SparkURL:    conn.Get("endpoint").String(),
 			SparkToken:  conn.Get("key").String(),
@@ -91,8 +94,8 @@ func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry
 		}
 		inv, err := spark.CallNamed("lnurlinvoice",
 			"msatoshi", msatoshi,
-			"lnurlpayserver/"+cuid.Slug(),
-			"description_has", hexh,
+			"label", "lnurlpayserver/"+cuid.Slug(),
+			"description_hash", hexh,
 			"expiry", expiry,
 			"preimage", hex.EncodeToString(preimage),
 		)
@@ -177,7 +180,7 @@ func (backend *Backend) waitInvoice(hash string) <-chan bool {
 
 		for {
 			switch backend.Kind {
-			case "sparko":
+			case "spark":
 				spark := &lightning.Client{
 					SparkURL:    conn.Get("endpoint").String(),
 					SparkToken:  conn.Get("key").String(),

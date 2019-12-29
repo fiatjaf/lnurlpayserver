@@ -2,6 +2,7 @@
 
 <script>
   import {getContext} from 'svelte'
+  import {shopKeys} from './shopStore'
   const notifier = getContext('notifier')
 
   const certPlaceholder = `-----BEGIN CERTIFICATE-----
@@ -19,97 +20,148 @@
   URFBB1y4AyysJe24lwIhAKyTkeIHCW1DwTGxQH9tfTlHfL1USABD
   -----END CERTIFICATE-----`
 
-  var kind = 'lnd'
-  var data = {}
   var showTLSCert = false
-  var successId
+  var backend = {kind: 'lnd', connection: {}}
+  var shop = {
+    id: '',
+    key: parseInt(Math.random() * 1000000).toString(),
+    message: '',
+    verification: {kind: 'none'},
+    webhook: null,
+    telegram: null
+  }
 
-  async function setLightningServer(e) {
+  function cleanupBackend() {
+    let {endpoint, cert} = backend.connection
+    backend.connection = {endpoint, cert}
+  }
+
+  function cleanupVerification() {
+    let kind = shop.verification.kind
+    shop.verification = {kind}
+  }
+
+  async function save(e) {
     e.preventDefault()
 
+    if (shop.verification.words && shop.verification.words.length) {
+      shop.verification.words = shop.verification.words
+        .split(' ')
+        .map(x => x.trim())
+        .filter(x => x)
+    }
+
     try {
-      let res = await window.fetch(`/set/${kind}`, {
+      let r = await window.fetch(`/${shop.id}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
+        body: JSON.stringify({...backend, ...shop})
       })
-      let {id, ok, error} = await res.json()
-      if (!ok) {
-        throw new Error(error)
+      let key = await r.json()
+      if (key.error) {
+        throw new Error(key.error)
       } else {
-        notifier.success(`Settings saved!`)
-        successId = id
+        notifier.success(`Shop ${shop.id} created with key ${key}!`)
+        shopKeys.addShop(shop.id, key)
       }
     } catch (err) {
       notifier.warning(`Couldn't save: ${err.message}`, 10000)
-      return
     }
   }
 </script>
 
-<section>
-  <form on:submit="{setLightningServer}">
-    {#if successId}
-    <h1>Node {successId} connected!</h1>
-    <p>
-      Visit <a href="/{successId}">your donation page to get your static QR</a>
-    </p>
-    {:else}
-    <select bind:value="{kind}">
-      <option>sparko</option>
-      <option>lnd</option>
-    </select>
-    {#if kind == 'sparko'}
-    <label
-      >endpoint:
-      <input
-        bind:value="{data.endpoint}"
-        placeholder="https://my.sparko:9737/rpc"
-    /></label>
-    <label>key: <input bind:value="{data.key}"/></label>
-    {:else if kind == 'lnd'}
-    <label
-      >HTTP endpoint:
-      <input bind:value="{data.endpoint}" placeholder="https://my.lnd:8080"
-    /></label>
-    <label
-      >invoice macaroon: <textarea rows="5" bind:value="{data.macaroon}" /> as
-      hex</label
-    >
-    {/if} {#if showTLSCert}
-    <label
-      >tls certificate:
-      <textarea
-        rows="16"
-        bind:value="{data.cert}"
-        placeholder="{certPlaceholder}"
-    /></label>
-    {:else}
-    <a on:click="{e => showTLSCert = true}"
-      >include tls cert? (click if you know what you're doing.)</a
-    >
-    {/if}
-    <button>save</button>
-    {/if}
-  </form>
-</section>
+<h1>Creating shop</h1>
+<form on:submit="{save}">
+  <h2>Shop details</h2>
+  <label>shop id: <input bind:value="{shop.id}" placeholder="myshop"/></label>
+  verification code to show after buy:
+  <select
+    bind:value="{shop.verification.kind}"
+    on:change="{cleanupVerification}"
+  >
+    <option>none</option>
+    <option>sequential</option>
+    <option>hmac</option>
+  </select>
+  {#if shop.verification.kind == 'sequential'}
+  <label>
+    iterate over this sequence of words:
+    <input
+      bind:value="{shop.verification.words}"
+      placeholder="word1 word2 word3 etc."
+    />
+  </label>
+  <label>
+    start at:
+    <input
+      bind:value="{shop.verification.init}"
+      placeholder="10"
+      type="number"
+    />
+  </label>
+  {:else if shop.verification.kind == 'hmac'}
+  <label>
+    key:
+    <input bind:value="{shop.verification.key}" placeholder="HMAC Key" />
+  </label>
+  <label>
+    interval (in minutes):
+    <input
+      bind:value="{shop.verification.interval}"
+      placeholder="10"
+      type="number"
+    />
+  </label>
+  {/if}
+  <label>
+    message:
+    <input bind:value="{shop.message}" placeholder="thank you for buying" />
+  </label>
+  <h2>Lightning backend</h2>
+  <select bind:value="{backend.kind}" on:change="{cleanupBackend}">
+    <option>spark</option>
+    <option>lnd</option>
+  </select>
+  {#if backend.kind == 'spark'}
+  <label>
+    endpoint:
+    <input
+      bind:value="{backend.connection.endpoint}"
+      placeholder="https://my.sparko:9737/rpc"
+    />
+  </label>
+  <label>key: <input bind:value="{backend.connection.key}"/></label>
+  {:else if backend.kind == 'lnd'}
+  <label>
+    HTTP endpoint:
+    <input
+      bind:value="{backend.connection.endpoint}"
+      placeholder="https://my.lnd:8080"
+    />
+  </label>
+  <label>
+    invoice macaroon:
+    <textarea rows="5" bind:value="{backend.connection.macaroon}" /> as hex
+  </label>
+  {/if} {#if showTLSCert}
+  <label
+    >tls certificate:
+    <textarea
+      rows="16"
+      bind:value="{backend.connection.cert}"
+      placeholder="{certPlaceholder}"
+    />
+  </label>
+  {:else}
+  <a on:click="{e => showTLSCert = true}">
+    include tls cert? (click if you know what you're doing)</a
+  >
+  {/if}
+  <button>Save</button>
+</form>
 
 <style>
-  section {
-    width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-  }
-  form {
-    width: 58%;
-    margin-right: 2%;
-    min-width: 400px;
-  }
   form * {
     margin: 2px 4px;
-  }
-  section > div {
-    width: 40%;
-    min-width: 300px;
   }
   label {
     display: flex;

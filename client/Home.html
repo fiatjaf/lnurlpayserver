@@ -2,20 +2,16 @@
 
 <script>
   import {onMount, getContext} from 'svelte'
+  import {shopKeys} from './shopStore'
   const notifier = getContext('notifier')
 
-  var shops = {}
-  $: shopIds = Object.keys(shops).sort()
-
-  onMount(() => {
-    shops = JSON.parse(localStorage.getItem('keys') || '{}')
-  })
+  $: shopIds = Object.keys($shopKeys).sort()
 </script>
 
 <div>
   <ul>
     {#each shopIds as id}
-    <li><a href="#/shop/{id}">{shops[id]}</a></li>
+    <li><a href="#/shop/{id}">{$shopKeys[id]}</a></li>
     {/each}
   </ul>
 </div>
@@ -28,7 +24,7 @@
     border: 1px inset black;
     padding: 2px 4px;
     margin: 2px 4px;
-    background-color: var(--button-color);
-    color: white;
+    background-color: var(--button);
+    color: var(--button-text);
   }
 </style>
