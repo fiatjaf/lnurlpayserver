@@ -6,25 +6,68 @@
   const notifier = getContext('notifier')
 
   $: shopIds = Object.keys($shopKeys).sort()
+  var form = null
+  var adopt = {}
+  var backend = {}
+
+  function showBackendLoginForm(e) {
+    e.preventDefault()
+    form = 'backendLogin'
+  }
+  function showAdoptForm(e) {
+    e.preventDefault()
+    form = 'adopt'
+  }
+
+  function addKey(e) {
+    e.preventDefault()
+  }
+
+  function backendRecover(e) {
+    e.preventDefault()
+  }
 </script>
 
 <div>
+  {#if form == null }
+  <h1>Your shops</h1>
   <ul>
     {#each shopIds as id}
-    <li><a href="#/shop/{id}">{$shopKeys[id]}</a></li>
-    {/each}
+    <li><a href="#/shop/{id}">{id}</a></li>
+    {:else} No shops registered {/each}
   </ul>
+  {:else if form = 'adopt'}
+  <form on:submit="{addKey}">
+    <h1>Adopting Shop</h1>
+    <label>Shop Id: <input bind:value="{adopt.id}"/></label>
+    <label>Shop Key: <input bind:value="{adopt.key}"/></label>
+    <button>Adopt</button>
+  </form>
+  {:else if form = 'backendLogin'}
+  <form on:submit="{backendRecover}">
+    <h1>Backend Recover</h1>
+    <button>Try</button>
+  </form>
+  {/if}
 </div>
-<div>
-  <a class="button" href="#/register">Register a shop</a>
+<div class="actions">
+  <a class="button" href="#/shop">Register a Shop</a>
+  <button on:click="{showAdoptForm}">
+    Adopt Shop by Key
+  </button>
+  <button on:click="{showBackendLoginForm}">
+    Recover with Lightning Backend
+  </button>
 </div>
 
 <style>
-  .button {
-    border: 1px inset black;
-    padding: 2px 4px;
-    margin: 2px 4px;
-    background-color: var(--button);
-    color: var(--button-text);
+  ul {
+    padding: 0;
+    margin: 20px;
+    display: flex;
+  }
+  .actions {
+    display: flex;
+    justify-content: space-around;
   }
 </style>

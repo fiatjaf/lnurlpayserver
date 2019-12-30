@@ -52,22 +52,26 @@ func main() {
 		},
 	)
 
-	lnurlmux := basemux.Path("/lnurl").Subrouter()
+	lnurlmux := mux.NewRouter()
 	lnurlmux.Use(parseURLMiddleware)
-	lnurlmux.PathPrefix("/p/{shop}/{tpl}/").Methods("GET").HandlerFunc(lnurlPayParams)
-	lnurlmux.PathPrefix("/v/{shop}/{tpl}/").Methods("GET").HandlerFunc(lnurlPayValues)
+	lnurlmux.PathPrefix("/lnurl/p/{shop}/{tpl}/").Methods("GET").HandlerFunc(lnurlPayParams)
+	lnurlmux.PathPrefix("/lnurl/v/{shop}/{tpl}/").Methods("GET").HandlerFunc(lnurlPayValues)
 
-	apimux := basemux.Path("/{shop}").Subrouter()
+	apimux := mux.NewRouter()
 	apimux.Use(allJSONMiddleware)
 	apimux.Use(authMiddleware)
-	apimux.Path("").Methods("GET").HandlerFunc(getShop)
-	apimux.Path("").Methods("PUT").HandlerFunc(setShop)
-	apimux.Path("/template/{tpl}").Methods("PUT").HandlerFunc(setTemplate)
-	apimux.Path("/template/{tpl}").Methods("DELETE").HandlerFunc(deleteTemplate)
-	apimux.Path("/template/{tpl}").Methods("GET").HandlerFunc(getTemplate)
-	apimux.Path("/template/{tpl}/lnurl").Methods("GET").HandlerFunc(getLNURL)
-	apimux.Path("/invoices").Methods("GET").HandlerFunc(listInvoices)
-	apimux.Path("/invoice/{hash}").Methods("GET").HandlerFunc(getInvoice)
+	apimux.Path("/shop/{shop}").Methods("GET").HandlerFunc(getShop)
+	apimux.Path("/shop/{shop}").Methods("PUT").HandlerFunc(setShop)
+	apimux.Path("/shop/{shop}/templates").Methods("GET").HandlerFunc(listTemplates)
+	apimux.Path("/shop/{shop}/template/{tpl}").Methods("PUT").HandlerFunc(setTemplate)
+	apimux.Path("/shop/{shop}/template/{tpl}").Methods("DELETE").HandlerFunc(deleteTemplate)
+	apimux.Path("/shop/{shop}/template/{tpl}").Methods("GET").HandlerFunc(getTemplate)
+	apimux.Path("/shop/{shop}/template/{tpl}/lnurl").Methods("GET").HandlerFunc(getLNURL)
+	apimux.Path("/shop/{shop}/invoices").Methods("GET").HandlerFunc(listInvoices)
+	apimux.Path("/shop/{shop}/invoice/{hash}").Methods("GET").HandlerFunc(getInvoice)
+
+	basemux.PathPrefix("/shop/").Handler(apimux)
+	basemux.PathPrefix("/lnurl/").Handler(lnurlmux)
 
 	srv := &http.Server{
 		Handler:      basemux,

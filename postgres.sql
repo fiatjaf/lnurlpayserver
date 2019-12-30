@@ -43,8 +43,9 @@ CREATE TABLE shop (
   webhook text,
   telegram integer,
 
+alter table shop add
   CONSTRAINT verification_valid CHECK (
-    char_length(verification::text) < 30
+    char_length(verification::text) < 300
     AND (
       (verification->>'kind' = 'none') OR
       (verification->>'kind' = 'sequential' AND
@@ -67,8 +68,8 @@ CREATE INDEX ON shop (key);
 CREATE TABLE template (
   id text NOT NULL,
   shop text NOT NULL REFERENCES shop (id),
-  path_params jsonb NOT NULL,
-  query_params jsonb NOT NULL,
+  path_params text[] NOT NULL,
+  query_params text[] NOT NULL,
   description text NOT NULL, -- template
   image text, -- data-uri or nothing
   currency text NOT NULL DEFAULT 'sat', -- sat, usd, eur, brl etc.
@@ -76,10 +77,6 @@ CREATE TABLE template (
   max_price text NOT NULL, -- formula
 
   PRIMARY KEY (shop, id),
-  CONSTRAINT arrays CHECK (
-    jsonb_typeof(path_params) = 'array' AND
-    jsonb_typeof(query_params) = 'array'
-  ),
   CONSTRAINT currency_check CHECK (
     currency IN ('sat', 'eur', 'usd', 'gbp', 'cad', 'jpy')
   ),

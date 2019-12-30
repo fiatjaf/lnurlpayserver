@@ -27,18 +27,19 @@ func authMiddleware(next http.Handler) http.Handler {
               SELECT `+SHOPFIELDS+`
               FROM shop
               WHERE id = $1 AND key = $2
+              LIMIT 1
             `, shopId, key)
 			if err == nil {
 				r = r.WithContext(
 					context.WithValue(
 						r.Context(),
-						"shop", shop,
+						"shop", &shop,
 					),
 				)
 				next.ServeHTTP(w, r)
 				return
 			}
-		} else if r.Method == "PUT" && len(strings.Split(r.URL.Path, "/")) == 2 {
+		} else if r.Method == "PUT" && len(strings.Split(r.URL.Path, "/")) == 3 {
 			// creating a shop
 			next.ServeHTTP(w, r)
 			return
@@ -205,7 +206,7 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 func listTemplates(w http.ResponseWriter, r *http.Request) {
 	shopId := mux.Vars(r)["shop"]
 
-	var templates []Template
+	templates := make([]Template, 0)
 	err := pg.Select(&templates, `
       SELECT `+TEMPLATEFIELDS+`
       FROM template
@@ -238,17 +239,22 @@ func setTemplate(w http.ResponseWriter, r *http.Request) {
           INSERT INTO template
             (id, shop, path_params, query_params, description, image,
              currency, min_price, max_price)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9
-          ON CONFLICT DO UPDATE SET
-            path_params = $3, query_params = $4,
+          VALUES (
+            $1, $2, string_to_array($3, '|'), string_to_array($4, '|'),
+            $5, $6, $7, $8, $9
+          )
+          ON CONFLICT (shop, id) DO UPDATE SET
+            path_params = string_to_array($3, '|'),
+            query_params = string_to_array($4, '|'),
             description = $5, image = $6,
-            currency = $7, $min_price = $8, max_price = $9
+            currency = $7, min_price = $8, max_price = $9
         `, t.Id, t.Shop,
 		t.PathParams, t.QueryParams,
 		t.Description, sql.NullString{String: t.Image, Valid: t.Image != ""},
 		t.Currency, t.MinPrice, t.MaxPrice,
 	)
 	if err != nil {
+		log.Warn().Err(err).Interface("template", t).Msg("failed to save template")
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
 		return
 	}
@@ -263,8 +269,10 @@ func deleteTemplate(w http.ResponseWriter, r *http.Request) {
 
 	_, err := pg.Exec(`
       DELETE FROM template WHERE id = $1 AND shop = $2
-    `, tplId, shop)
+    `, tplId, shop.Id)
 	if err != nil {
+		log.Warn().Err(err).Str("tpl", tplId).Str("shop", shop.Id).
+			Msg("error deleting template")
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
 		return
 	}
@@ -278,10 +286,12 @@ func getTemplate(w http.ResponseWriter, r *http.Request) {
 	tplId := mux.Vars(r)["tpl"]
 
 	var template Template
-	_, err := pg.Exec(`
+	err := pg.Get(&template, `
       SELECT `+TEMPLATEFIELDS+` FROM template WHERE id = $1 AND shop = $2
-    `, tplId, shop)
+    `, tplId, shop.Id)
 	if err != nil {
+		log.Warn().Err(err).Str("tpl", tplId).Str("shop", shop.Id).
+			Msg("error fetching template")
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
 		return
 	}
@@ -295,10 +305,12 @@ func getLNURL(w http.ResponseWriter, r *http.Request) {
 	tplId := mux.Vars(r)["tpl"]
 
 	var template Template
-	_, err := pg.Exec(`
+	err := pg.Get(&template, `
       SELECT `+TEMPLATEFIELDS+` FROM template WHERE id = $1 AND shop = $2
-    `, tplId, shop)
+    `, tplId, shop.Id)
 	if err != nil {
+		log.Warn().Err(err).Str("tpl", tplId).Str("shop", shop.Id).
+			Msg("error fetching template")
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
 		return
 	}
@@ -321,7 +333,7 @@ func getLNURL(w http.ResponseWriter, r *http.Request) {
 func listInvoices(w http.ResponseWriter, r *http.Request) {
 	shop := r.Context().Value("shop").(*Shop)
 
-	var invoices []Invoice
+	invoices := make([]Invoice, 0)
 	err := pg.Select(`
       SELECT `+INVOICEFIELDS+`
       FROM invoice

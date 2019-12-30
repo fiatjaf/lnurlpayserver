@@ -16,18 +16,18 @@ import (
 )
 
 type Template struct {
-	Id          string   `db:"id" json:"id"`
-	Shop        string   `db:"shop" json:"shop"`
-	PathParams  []string `db:"path_params" json:"path_params"`
-	QueryParams []string `db:"query_params" json:"query_params"`
-	Description string   `db:"description" json:"description"`
-	Image       string   `db:"image" json:"image,omitempty"`
-	Currency    string   `db:"currency" json:"currency"`
-	MinPrice    string   `db:"min_price" json:"min_price"`
-	MaxPrice    string   `db:"max_price" json:"max_price"`
+	Id          string               `db:"id" json:"id"`
+	Shop        string               `db:"shop" json:"shop"`
+	PathParams  DelimitedStringArray `db:"path_params" json:"path_params"`
+	QueryParams DelimitedStringArray `db:"query_params" json:"query_params"`
+	Description string               `db:"description" json:"description"`
+	Image       string               `db:"image" json:"image,omitempty"`
+	Currency    string               `db:"currency" json:"currency"`
+	MinPrice    string               `db:"min_price" json:"min_price"`
+	MaxPrice    string               `db:"max_price" json:"max_price"`
 }
 
-var TEMPLATEFIELDS = `id, shop, path_params, query_params, description, coalesce(image, '') AS image, currency, min_price, max_price`
+var TEMPLATEFIELDS = `id, shop, array_to_string(path_params, '|') AS path_params, array_to_string(query_params, '|') AS query_params, description, coalesce(image, '') AS image, currency, min_price, max_price`
 
 func (t *Template) MakeURL(params map[string]string) string {
 	path := "/lnurl/p/" + t.Shop + "/" + t.Id + "/"

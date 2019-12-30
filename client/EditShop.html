@@ -1,0 +1,130 @@
+<!-- @format -->
+
+<script>
+  import {onMount, getContext} from 'svelte'
+  import {push} from 'svelte-spa-router'
+  import {shopKeys} from './shopStore'
+  import {fetchShopData} from './helpers'
+  import BackendForm from './BackendForm.html'
+  const notifier = getContext('notifier')
+
+  export var params = {}
+
+  var backend = {kind: 'lnd', connection: {}}
+  var shop = {
+    id: '',
+    key: parseInt(Math.random() * 1000000).toString(),
+    message: '',
+    verification: {kind: 'none'},
+    webhook: null,
+    telegram: null
+  }
+
+  onMount(async () => {
+    if (params.shopId) {
+      try {
+        shop = await fetchShopData(params.shopId)
+      } catch (err) {
+        notifier.warning(`Couldn't fetch shop data: ${err.message}`, 10000)
+      }
+    }
+  })
+
+  function cleanupVerification() {
+    let kind = shop.verification.kind
+    shop.verification = {kind}
+  }
+
+  async function save(e) {
+    e.preventDefault()
+
+    if (shop.verification.words && shop.verification.words.length) {
+      shop.verification.words = shop.verification.words
+        .split(' ')
+        .map(x => x.trim())
+        .filter(x => x)
+    } else {
+      delete shop.verification.words
+    }
+
+    try {
+      let r = await window.fetch(`/shop/${shop.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({...backend, ...shop}),
+        headers: params.shopId
+          ? {Authorization: 'Basic ' + shopKeys.getShopToken(shop.id)}
+          : {}
+      })
+      let key = await r.json()
+      if (key.error) {
+        throw new Error(key.error)
+      } else {
+        notifier.success(`Shop ${shop.id} created with key ${key}!`)
+        shopKeys.addShop(shop.id, key)
+        push(`/shop/${shop.id}`)
+      }
+    } catch (err) {
+      notifier.warning(`Couldn't save: ${err.message}`, 10000)
+    }
+  }
+</script>
+
+<h1>{#if params.shopId}Editing shop {shop.id}{:else}Creating shop{/if}</h1>
+<div>
+  <h2>Shop details</h2>
+  <label
+    >shop id:
+    <input
+      disabled="{params.shopId}"
+      bind:value="{shop.id}"
+      placeholder="myshop"
+  /></label>
+  verification code to show after buy:
+  <select
+    bind:value="{shop.verification.kind}"
+    on:change="{cleanupVerification}"
+  >
+    <option>none</option>
+    <option>sequential</option>
+    <option>hmac</option>
+  </select>
+  {#if shop.verification.kind == 'sequential'}
+  <label>
+    iterate over this sequence of words:
+    <input
+      bind:value="{shop.verification.words}"
+      placeholder="word1 word2 word3 etc."
+    />
+  </label>
+  <label>
+    start at:
+    <input
+      bind:value="{shop.verification.init}"
+      placeholder="10"
+      type="number"
+    />
+  </label>
+  {:else if shop.verification.kind == 'hmac'}
+  <label>
+    key:
+    <input bind:value="{shop.verification.key}" placeholder="HMAC Key" />
+  </label>
+  <label>
+    interval (in minutes):
+    <input
+      bind:value="{shop.verification.interval}"
+      placeholder="10"
+      type="number"
+    />
+  </label>
+  {/if}
+  <label>
+    message:
+    <input bind:value="{shop.message}" placeholder="thank you for buying" />
+  </label>
+  <h2>Lightning backend</h2>
+  <BackendForm bind:backend="{backend}" />
+  <button on:click="{save}">Save</button>
+</div>
+
+<style></style>

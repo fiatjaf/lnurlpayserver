@@ -1,8 +1,59 @@
 <!-- @format -->
 
 <script>
-  import {getContext} from 'svelte'
+  import {onMount, getContext} from 'svelte'
+  import {fetchTemplateData} from './helpers'
   const notifier = getContext('notifier')
+
+  export var params = {}
+  var template = {
+    id: params.templateId,
+    shop: params.shopId,
+    path_params: [],
+    query_params: [],
+    currency: ''
+  }
+
+  onMount(async () => {
+    try {
+      template = await fetchTemplateData(params.shopId, params.templateId)
+    } catch (err) {
+      notifier.warning(`Couldn't fetch template data: ${err.message}`, 10000)
+    }
+  })
 </script>
+
+<div>
+  <h3>
+    {template.id}
+    <a class="button" href="#/shop/{params.ShopId}/template/{template.id}/edit">
+      Edit
+    </a>
+  </h3>
+  <section>
+    <b>Params</b>: <span>{template.path_params.join('/')}</span>?<span
+      >{template.query_params.join('&')}</span
+    >
+  </section>
+  <section>
+    <b>Description:</b>
+    <div>{template.description}</div>
+  </section>
+  {#if template.image}
+  <section>
+    <b>Image:</b> <img alt="product image" src="{template.image}" />
+  </section>
+  {/if}
+  <section>
+    <b>Currency:</b> <span>{template.currency.toUpperCase()}</span>
+  </section>
+  <section>
+    <b>Price:</b>
+    <span
+      >{template.min_price}{#if template.min_price != template.max_price}--
+      {template.max_price}{/if}</span
+    >
+  </section>
+</div>
 
 <style></style>

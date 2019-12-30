@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql/driver"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -10,6 +12,21 @@ import (
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/tidwall/gjson"
 )
+
+type DelimitedStringArray []string
+
+func (ss *DelimitedStringArray) Scan(src interface{}) error {
+	if v, ok := src.(string); ok {
+		*ss = strings.Split(v, "|")
+		return nil
+	} else {
+		return errors.New("not a |-delimited string array")
+	}
+}
+
+func (ss DelimitedStringArray) Value() (driver.Value, error) {
+	return strings.Join(ss, "|"), nil
+}
 
 var fiatPrices = cmap.New()
 

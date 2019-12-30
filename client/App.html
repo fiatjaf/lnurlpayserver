@@ -6,20 +6,26 @@
   import Router from 'svelte-spa-router'
 
   import Home from './Home.html'
-  import Register from './Register.html'
+  import EditShop from './EditShop.html'
   import Shop from './Shop.html'
   import Template from './Template.html'
+  import EditTemplate from './EditTemplate.html'
   import Invoice from './Invoice.html'
+  import Docs from './Docs.html'
   import NotFound from './NotFound.html'
 
   setContext('notifier', notifier)
 
   const routes = {
     '/': Home,
-    '/register': Register,
+    '/shop': EditShop,
     '/shop/:shopId': Shop,
-    '/shop/:shopId/template/:templateid': Template,
-    '/invoice/:invoiceid': Invoice,
+    '/shop/:shopId/edit': EditShop,
+    '/shop/:shopId/template': EditTemplate,
+    '/shop/:shopId/template/:templateId': Template,
+    '/shop/:shopId/template/:templateId/edit': EditTemplate,
+    '/shop/:shopId/invoice/:invoiceId': Invoice,
+    '/docs': Docs,
     '*': NotFound
   }
 </script>
@@ -27,11 +33,16 @@
 <NotificationDisplay />
 
 <header>
-  <h1>lnurlpayserver</h1>
+  <a href="#/">
+    <img alt="lnurlpayserver logo" src=/public/logo.png>
+  </a>
+  <a href="#/">
+    <h1>lnurlpayserver</h1>
+  </a>
 </header>
 <nav>
-  <a href="#/"><img alt="lnurlpayserver logo" src=/public/logo.png></a>
-  <a href="#/"></a>
+  <a href="#/">Home</a>
+  <a href="#/docs">Docs</a>
 </nav>
 <main><Router {routes} /></main>
 <footer>
@@ -41,10 +52,18 @@
 </footer>
 
 <style>
+  header {
+    display: flex;
+    align-items: center;
+  }
   nav {
     display: flex;
+    justify-content: space-around;
   }
   img {
     max-height: 40px;
+  }
+  footer {
+    margin-top: 200px;
   }
 </style>

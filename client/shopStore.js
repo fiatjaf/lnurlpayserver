@@ -14,5 +14,10 @@ export const shopKeys = {
     current[id] = key
     localStorage.setItem('keys', JSON.stringify(current))
     return set(current)
+  },
+  getShopToken: id => {
+    let current = JSON.parse(localStorage.getItem('keys') || '{}')
+    let key = current[id]
+    return btoa('key:' + key)
   }
 }

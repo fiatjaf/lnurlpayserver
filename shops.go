@@ -26,7 +26,7 @@ type Shop struct {
 	Telegram     int64          `db:"telegram" json:"telegram"`
 }
 
-var SHOPFIELDS = `id, backend, coalesce(message, '') AS message, verification, coalesce(webhook, '') AS webhook, coalesce(telegram, 0) AS telegram`
+var SHOPFIELDS = `id, backend, key, coalesce(message, '') AS message, verification, coalesce(webhook, '') AS webhook, coalesce(telegram, 0) AS telegram`
 
 func (shop *Shop) MakeSuccessAction(
 	params map[string]string,

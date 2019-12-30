@@ -1,0 +1,180 @@
+<!-- @format -->
+
+<script>
+  import {onMount, getContext} from 'svelte'
+  import {push} from 'svelte-spa-router'
+  import {shopKeys} from './shopStore'
+  import {fetchTemplateData} from './helpers'
+  const notifier = getContext('notifier')
+
+  export var params = {}
+
+  var template = {
+    id: params.templateId,
+    shop: params.shopId,
+    path_params: [],
+    query_params: [],
+    description: '',
+    currency: 'sat',
+    min_price: '',
+    max_price: ''
+  }
+
+  onMount(async () => {
+    if (params.shopId && params.templateId) {
+      try {
+        template = await fetchTemplateData(params.shopId, params.templateId)
+      } catch (err) {
+        notifier.warning(`Couldn't fetch template data: ${err.message}`, 10000)
+      }
+    }
+  })
+
+  async function save(e) {
+    e.preventDefault()
+
+    template.path_params = template.path_params
+      .map(x => x.trim())
+      .filter(x => x)
+    template.query_params = template.query_params
+      .map(x => x.trim())
+      .filter(x => x)
+
+    if (template.image && template.image.trim() === '') {
+      delete template.image
+    }
+    if (template.max_price === '') {
+      template.max_price = template.min_price
+    }
+
+    try {
+      let r = await window.fetch(
+        `/shop/${template.shop}/template/${template.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(template),
+          headers: params.shopId
+            ? {Authorization: 'Basic ' + shopKeys.getShopToken(template.shop)}
+            : {}
+        }
+      )
+      let key = await r.json()
+      if (key.error) {
+        throw new Error(key.error)
+      } else {
+        notifier.success(`Template ${template.id}!`)
+        push(`/shop/${template.shop}/template/${template.id}`)
+      }
+    } catch (err) {
+      notifier.warning(`Couldn't save: ${err.message}`, 10000)
+    }
+  }
+
+  function addPathParam(e) {
+    e.preventDefault()
+    if (
+      template.path_params.filter(x => x.trim()).length ===
+      template.path_params.length
+    ) {
+      template.path_params.push('')
+      template.path_params = template.path_params
+    }
+  }
+
+  function checkRemovePathParam(e) {
+    if (e.target.value === '') {
+      template.path_params.splice(parseInt(e.target.dataset.i), 1)
+      template.path_params = template.path_params
+    }
+  }
+
+  function addQueryParam(e) {
+    e.preventDefault()
+    if (
+      template.query_params.filter(x => x.trim()).length ===
+      template.query_params.length
+    ) {
+      template.query_params.push('')
+      template.query_params = template.query_params
+    }
+  }
+
+  function checkRemoveQueryParam(e) {
+    if (e.target.value === '') {
+      template.query_params.splice(parseInt(e.target.dataset.i), 1)
+      template.query_params = template.query_params
+    }
+  }
+</script>
+
+<h1>
+  {#if params.templateId}Editing template {template.id}{:else}Creating
+  template{/if}
+</h1>
+<div>
+  <label>
+    template id:
+    <input
+      disabled="{params.templateId}"
+      bind:value="{template.id}"
+      placeholder="myitem"
+    />
+  </label>
+  <label>
+    rigid params: {#each template.path_params as paramName, i}
+    <input
+      bind:value="{template.path_params[i]}"
+      data-i="{i}"
+      on:input="{checkRemovePathParam}"
+    />
+    {/each}
+    <button on:click="{addPathParam}">+</button>
+  </label>
+  <label>
+    flexible params: {#each template.query_params as paramName, i}
+    <input
+      bind:value="{template.query_params[i]}"
+      data-i="{i}"
+      on:input="{checkRemoveQueryParam}"
+    />
+    {/each}
+    <button on:click="{addQueryParam}">+</button>
+  </label>
+  <label>
+    description (mustache template):
+    <textarea
+      bind:value="{template.description}"
+      placeholder="{`Jan 3 2035
+MyShop, MyShopstreet 18, MyTown
+Item: MyItem
+Quantity: {{quantity}}
+Color: {{color}}
+`}"
+    />
+  </label>
+  <label>
+    image (base64 data-uri -- optional):
+    <textarea
+      bind:value="{template.image}"
+      placeholder="data:image/png;base64,..."
+    />
+  </label>
+  <label>
+    currency:
+    <select bind:value="{template.currency}">
+      <option>sat</option>
+      <option>usd</option>
+      <option>eur</option>
+      <option>gbp</option>
+      <option>cad</option>
+      <option>jpy</option>
+    </select>
+  </label>
+  <label>
+    price (lua expression):
+    <input bind:value="{template.min_price}" placeholder="quantity * 10000" />
+  </label>
+  <button on:click="{save}">Save</button>
+</div>
+
+<style></style>
