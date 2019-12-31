@@ -24,16 +24,6 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func GetBackendFromTemplate(templateId string) (backend *Backend, err error) {
-	err = pg.Get(backend, `
-      SELECT backend.* FROM backend
-      INNER JOIN shop ON shop.backend = backend.id
-      INNER JOIN template ON template.shop = shop.id
-      WHERE template.id = $1
-    `, templateId)
-	return
-}
-
 type Backend struct {
 	Id         string         `db:"id" json:"id"`
 	Kind       string         `db:"kind" json:"kind"`

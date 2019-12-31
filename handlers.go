@@ -204,14 +204,16 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 }
 
 func listTemplates(w http.ResponseWriter, r *http.Request) {
-	shopId := mux.Vars(r)["shop"]
+	shop := r.Context().Value("shop").(*Shop)
 
-	templates := make([]Template, 0)
+	templates := make([]Template, 0, 30)
 	err := pg.Select(&templates, `
       SELECT `+TEMPLATEFIELDS+`
       FROM template
-      WHERE id = $1
-    `, shopId)
+      WHERE template.shop = $1
+      ORDER BY template.id
+      LIMIT 30
+    `, shop.Id)
 	if err != nil {
 		json.NewEncoder(w).Encode(Response{false, err.Error()})
 		return
@@ -240,12 +242,14 @@ func setTemplate(w http.ResponseWriter, r *http.Request) {
             (id, shop, path_params, query_params, description, image,
              currency, min_price, max_price)
           VALUES (
-            $1, $2, string_to_array($3, '|'), string_to_array($4, '|'),
+            $1, $2,
+            array_remove(string_to_array($3, '|'), ''),
+            array_remove(string_to_array($4, '|'), ''),
             $5, $6, $7, $8, $9
           )
           ON CONFLICT (shop, id) DO UPDATE SET
-            path_params = string_to_array($3, '|'),
-            query_params = string_to_array($4, '|'),
+            path_params = array_remove(string_to_array($3, '|'), ''),
+            query_params = array_remove(string_to_array($4, '|'), ''),
             description = $5, image = $6,
             currency = $7, min_price = $8, max_price = $9
         `, t.Id, t.Shop,
@@ -333,11 +337,13 @@ func getLNURL(w http.ResponseWriter, r *http.Request) {
 func listInvoices(w http.ResponseWriter, r *http.Request) {
 	shop := r.Context().Value("shop").(*Shop)
 
-	invoices := make([]Invoice, 0)
+	invoices := make([]Invoice, 0, 30)
 	err := pg.Select(`
       SELECT `+INVOICEFIELDS+`
       FROM invoice
       WHERE invoice.shop = $1
+      ORDER BY time DESC
+      LIMIT 30
     `, shop.Id)
 	if err != nil {
 		json.NewEncoder(w).Encode(Response{false, err.Error()})

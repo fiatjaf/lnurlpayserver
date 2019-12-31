@@ -80,4 +80,10 @@ select {
 
 th {
   text-align: left;
+  padding-right: 6px;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }

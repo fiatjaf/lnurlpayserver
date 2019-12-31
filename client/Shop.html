@@ -36,7 +36,6 @@
   <h1>
     Shop {shop.id}
   </h1>
-  <a class="button" href="#/shop/{shop.id}/edit">Edit</a>
   <table>
     <tr>
       <th>Backend:</th>
@@ -79,11 +78,13 @@
     {/if}
   </table>
 
+  <a class="button" href="#/shop/{shop.id}/edit">Edit</a>
+
   <div>
     <h2>Templates</h2>
     <ul>
       {#each templates as t}
-      <a href="#/shop/{shop.id}/template/{t.id}">{t.id}</a>
+      <a href="#/shop/{t.shop}/template/{t.id}">{t.id}</a>
       {/each}
     </ul>
     <a class="button" href="#/shop/{shop.id}/template">Add Template</a>

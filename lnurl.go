@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/fiatjaf/go-lnurl"
 	"github.com/gorilla/mux"
+	"github.com/kr/pretty"
 )
 
 func parseURLMiddleware(next http.Handler) http.Handler {
@@ -17,7 +19,7 @@ func parseURLMiddleware(next http.Handler) http.Handler {
 		tplId := vars["tpl"]
 
 		var t Template
-		err = pg.Get(t, `
+		err = pg.Get(&t, `
           SELECT `+TEMPLATEFIELDS+` FROM template
           WHERE shop = $1 AND id = $2
         `, shopId, tplId)
@@ -32,7 +34,7 @@ func parseURLMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		r.WithContext(
+		r = r.WithContext(
 			context.WithValue(
 				context.WithValue(r.Context(),
 					"template", &t,
@@ -60,7 +62,7 @@ func lnurlPayParams(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(lnurl.LNURLPayResponse1{
 		Tag:             "payRequest",
-		Callback:        t.MakeURL(params),
+		Callback:        strings.Replace(t.MakeURL(params), "/p/", "/v/", 1),
 		EncodedMetadata: t.EncodedMetadata(params),
 		MinSendable:     min,
 		MaxSendable:     max,
@@ -98,6 +100,9 @@ func lnurlPayValues(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(lnurl.ErrorResponse("SuccessAction error: " + err.Error()))
 		return
 	}
+
+	pretty.Log(invoice.Bolt11)
+	pretty.Log(sa)
 
 	r.Header.Set("X-Invoice-Id", invoice.Hash)
 	json.NewEncoder(w).Encode(lnurl.LNURLPayResponse2{

@@ -69,7 +69,10 @@
   }
 </script>
 
-<h1>{#if params.shopId}Editing shop {shop.id}{:else}Creating shop{/if}</h1>
+<h1>
+  {#if params.shopId}Editing shop
+  <a href="#/shop/{shop.id}">{shop.id}</a>{:else}Creating shop{/if}
+</h1>
 <div>
   <h2>Shop details</h2>
   <label

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -18,6 +19,9 @@ type DelimitedStringArray []string
 func (ss *DelimitedStringArray) Scan(src interface{}) error {
 	if v, ok := src.(string); ok {
 		*ss = strings.Split(v, "|")
+		if len(*ss) == 1 && []string(*ss)[0] == "" {
+			*ss = make(DelimitedStringArray, 0)
+		}
 		return nil
 	} else {
 		return errors.New("not a |-delimited string array")
@@ -76,7 +80,14 @@ func getSatoshisPer(currency string) (int64, error) {
 
 func paramsToInterface(params map[string]string) map[string]interface{} {
 	res := make(map[string]interface{})
-	for k, v := range params {
+	for k, str := range params {
+		var v interface{}
+
+		err := json.Unmarshal([]byte(str), &v)
+		if err != nil {
+			v = str
+		}
+
 		res[k] = v
 	}
 	return res

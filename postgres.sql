@@ -3,29 +3,27 @@ CREATE TABLE backend (
   kind text NOT NULL, -- spark, lnd, lntxbot etc.
   connection jsonb NOT NULL,
 
-  CONSTRAINT connection_valid CHECK (
-    char_length(connection::text) < 2000
-    AND (
-      (kind = 'spark' AND (
-        jsonb_typeof(connection->'endpoint') = 'string' AND
-        jsonb_typeof(connection->'key') = 'string' AND
-        CASE WHEN connection ? 'cert'
-          THEN jsonb_typeof(connection->'cert') = 'string'
-          ELSE true
-        END
-      )) OR
-      (kind = 'lnd' AND (
-        jsonb_typeof(connection->'endpoint') = 'string' AND
-        jsonb_typeof(connection->'macaroon') = 'string' AND
-        CASE WHEN connection ? 'cert'
-          THEN jsonb_typeof(connection->'cert') = 'string'
-          ELSE true
-        END
-      )) OR
-      (kind = 'lntxbot' AND (
-        jsonb_typeof(connection->'key') = 'string'
-      ))
-    )
+  CONSTRAINT connection_length CHECK (char_length(connection::text) < 2000),
+  CONSTRAINT connection_schema CHECK (
+    (kind = 'spark' AND (
+      jsonb_typeof(connection->'endpoint') = 'string' AND
+      jsonb_typeof(connection->'key') = 'string' AND
+      CASE WHEN connection ? 'cert'
+        THEN jsonb_typeof(connection->'cert') = 'string'
+        ELSE true
+      END
+    )) OR
+    (kind = 'lnd' AND (
+      jsonb_typeof(connection->'endpoint') = 'string' AND
+      jsonb_typeof(connection->'macaroon') = 'string' AND
+      CASE WHEN connection ? 'cert'
+        THEN jsonb_typeof(connection->'cert') = 'string'
+        ELSE true
+      END
+    )) OR
+    (kind = 'lntxbot' AND (
+      jsonb_typeof(connection->'key') = 'string'
+    ))
   )
 );
 
@@ -43,22 +41,19 @@ CREATE TABLE shop (
   webhook text,
   telegram integer,
 
-alter table shop add
-  CONSTRAINT verification_valid CHECK (
-    char_length(verification::text) < 300
-    AND (
-      (verification->>'kind' = 'none') OR
-      (verification->>'kind' = 'sequential' AND
-        jsonb_typeof(verification->'init') = 'number' AND
-        CASE WHEN verification ? 'words'
-          THEN jsonb_typeof(verification->'words') = 'array'
-          ELSE true
-        END
-      ) OR
-      (verification->>'kind' = 'hmac' AND
-        jsonb_typeof(verification->'interval') = 'number' AND
-        jsonb_typeof(verification->'key') = 'string'
-      )
+  CONSTRAINT verification_length CHECK (char_length(verification::text) < 300),
+  CONSTRAINT verification_schema CHECK (
+    (verification->>'kind' = 'none') OR
+    (verification->>'kind' = 'sequential' AND
+      jsonb_typeof(verification->'init') = 'number' AND
+      CASE WHEN verification ? 'words'
+        THEN jsonb_typeof(verification->'words') = 'array'
+        ELSE true
+      END
+    ) OR
+    (verification->>'kind' = 'hmac' AND
+      jsonb_typeof(verification->'interval') = 'number' AND
+      jsonb_typeof(verification->'key') = 'string'
     )
   )
 );
@@ -77,6 +72,7 @@ CREATE TABLE template (
   max_price text NOT NULL, -- formula
 
   PRIMARY KEY (shop, id),
+  CONSTRAINT params_overlap CHECK (not (path_params && query_params)),
   CONSTRAINT currency_check CHECK (
     currency IN ('sat', 'eur', 'usd', 'gbp', 'cad', 'jpy')
   ),
@@ -98,6 +94,7 @@ CREATE TABLE invoice (
   preimage text UNIQUE NOT NULL,
   shop text NOT NULL,
   template text NOT NULL,
+  params jsonb NOT NULL,
   creation timestamp NOT NULL DEFAULT now(),
   payment timestamp, -- null when not paid
   amount_msat numeric(13) NOT NULL,

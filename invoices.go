@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 func NewInvoice(
 	templateId string,
+	shopId string,
 	price int64,
 	params map[string]string,
 	encodedMetadata string,
@@ -27,7 +29,12 @@ func NewInvoice(
 	hash := sha256.Sum256(preimage)
 	hashStr := hex.EncodeToString(hash[:])
 
-	backend, err := GetBackendFromTemplate(templateId)
+	var backend Backend
+	err = pg.Get(&backend, `
+      SELECT backend.* FROM backend
+      INNER JOIN shop ON shop.backend = backend.id
+      WHERE shop.id = $1
+    `, shopId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get backend info to generate invoice: %w", err)
 	}
@@ -37,17 +44,19 @@ func NewInvoice(
 		return nil, fmt.Errorf("failed to generate invoice: %w", err)
 	}
 
-	err = pg.Get(invoice, `
+	jparams, _ := json.Marshal(params)
+	var inv Invoice
+	err = pg.Get(&inv, `
       INSERT INTO invoice
-        (preimage, hash, template, params, amount_msat, bolt11)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `, preimageStr, hashStr, templateId, params, price, bolt11)
+        (preimage, hash, shop, template, params, amount_msat, bolt11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING `+INVOICEFIELDS+`
+    `, preimageStr, hashStr, shopId, templateId, jparams, price, bolt11)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save invoice on database: %w", err)
 	}
 
-	return invoice, nil
+	return &inv, nil
 }
 
 type Invoice struct {

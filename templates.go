@@ -52,7 +52,7 @@ func (t *Template) MakeURL(params map[string]string) string {
 
 	// add hmac
 	mac := hmac.New(sha256.New, []byte(s.Secret))
-	mac.Write([]byte(path))
+	mac.Write([]byte(path[8:]))
 	qs.Set("hmac", hex.EncodeToString(mac.Sum(nil)))
 
 	return s.ServiceURL + path + "?" + qs.Encode()
@@ -73,16 +73,17 @@ func (t *Template) ParseURL(u *url.URL) (params map[string]string, err error) {
 	// get params from URL path
 	params = make(map[string]string)
 	for i, paramName := range t.PathParams {
-		value := spl[4+i]
+		value := spl[5+i]
 		params[paramName] = value
 	}
 
 	// verify path hmac
 	code, _ := hex.DecodeString(qs.Get("hmac"))
 	mac := hmac.New(sha256.New, []byte(s.Secret))
-	mac.Write([]byte(u.Path))
-	if !hmac.Equal(code, mac.Sum(nil)) {
-		err = errors.New("invalid lnurl: hmac doesn't match")
+	mac.Write([]byte(u.Path[8:]))
+	smac := mac.Sum(nil)
+	if !hmac.Equal(code, smac) {
+		err = errors.New("Invalid lnurl: HMAC doesn't match.")
 		return
 	}
 	qs.Del("hmac")
@@ -114,7 +115,7 @@ func (t Template) MakeInvoice(
 	encodedMetadata := t.EncodedMetadata(params)
 
 	// generate invoice and save invoice object
-	inv, err := NewInvoice(t.Id, amount, params, encodedMetadata)
+	inv, err := NewInvoice(t.Id, t.Shop, amount, params, encodedMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make invoice: %w", err)
 	}
@@ -146,7 +147,7 @@ func (t *Template) GetPrices(params map[string]string) (min int64, max int64, er
 	max = int64(fmax)
 
 	// convert to satoshis
-	var satoshis int64 = 1
+	var satoshis int64 = 1000
 	if t.Currency != "sat" {
 		satoshis, err = getSatoshisPer(t.Currency)
 		if err != nil {

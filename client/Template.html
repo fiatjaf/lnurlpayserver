@@ -2,7 +2,9 @@
 
 <script>
   import {onMount, getContext} from 'svelte'
+  import QR from 'svelte-kjua'
   import {fetchTemplateData} from './helpers'
+  import {shopKeys} from './shopStore'
   const notifier = getContext('notifier')
 
   export var params = {}
@@ -12,6 +14,38 @@
     path_params: [],
     query_params: [],
     currency: ''
+  }
+
+  var lnurlparams = {}
+  var lnurl
+  function clearLNURL() {
+    lnurl = null
+  }
+  async function generateLNURL(e) {
+    e.preventDefault()
+    try {
+      var qs = new URLSearchParams()
+      for (let k in lnurlparams) {
+        qs.set(k, lnurlparams[k])
+      }
+
+      let r = await window.fetch(
+        `/shop/${template.shop}/template/${template.id}/lnurl?${qs.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: 'Basic ' + shopKeys.getShopToken(template.shop)
+          }
+        }
+      )
+      let res = await r.json()
+      if (res.error) {
+        throw new Error(res.error)
+      }
+      lnurl = res
+    } catch (err) {
+      notifier.warning(`Couldn't generate lnurl: ${err.message}`, 10000)
+    }
   }
 
   onMount(async () => {
@@ -24,36 +58,64 @@
 </script>
 
 <div>
-  <h3>
-    {template.id}
-    <a class="button" href="#/shop/{params.ShopId}/template/{template.id}/edit">
-      Edit
-    </a>
-  </h3>
-  <section>
-    <b>Params</b>: <span>{template.path_params.join('/')}</span>?<span
-      >{template.query_params.join('&')}</span
-    >
-  </section>
-  <section>
-    <b>Description:</b>
-    <div>{template.description}</div>
-  </section>
-  {#if template.image}
-  <section>
-    <b>Image:</b> <img alt="product image" src="{template.image}" />
-  </section>
-  {/if}
-  <section>
-    <b>Currency:</b> <span>{template.currency.toUpperCase()}</span>
-  </section>
-  <section>
-    <b>Price:</b>
-    <span
-      >{template.min_price}{#if template.min_price != template.max_price}--
-      {template.max_price}{/if}</span
-    >
-  </section>
+  <h1><a href="#/shop/{template.shop}">{template.shop}</a> / {template.id}</h1>
+  <table>
+    <tr>
+      <th>Params:</th>
+      <td>
+        {template.path_params.join('/')} ? {template.query_params.join('&')}
+      </td>
+    </tr>
+    <tr>
+      <th>Description:</th>
+      <div>{template.description}</div>
+    </tr>
+    {#if template.image}
+    <tr>
+      <th>Image:</th>
+      <img alt="product image" src="{template.image}" />
+    </tr>
+    {/if}
+    <tr>
+      <th>Currency:</th>
+      <td>{template.currency.toUpperCase()}</td>
+    </tr>
+    <tr>
+      <th>Price:</th>
+      <td>
+        {template.min_price}{#if template.min_price != template.max_price}--
+        {template.max_price}{/if}
+      </td>
+    </tr>
+  </table>
+
+  <a class="button" href="#/shop/{template.shop}/template/{template.id}/edit">
+    Edit
+  </a>
 </div>
+
+{#if params.templateId }
+<div>
+  <h2>Generate lnurl</h2>
+  <form on:submit="{generateLNURL}">
+    {#each template.path_params as p (p)}
+    <label>
+      {p}: <input bind:value="{lnurlparams[p]}" on:input="{clearLNURL}" />
+    </label>
+    {/each} {#each template.query_params as p (p)}
+    <label>
+      {p}: <input bind:value="{lnurlparams[p]}" on:input="{clearLNURL}" />
+    </label>
+    {/each}
+    <button>Generate</button>
+  </form>
+  {#if lnurl}
+  <div>
+    <QR value="{lnurl}" color="white" />
+    <pre><code>{lnurl}</code></pre>
+  </div>
+  {/if}
+</div>
+{/if}
 
 <style></style>

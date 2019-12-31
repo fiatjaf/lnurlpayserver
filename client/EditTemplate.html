@@ -108,8 +108,10 @@
 </script>
 
 <h1>
-  {#if params.templateId}Editing template {template.id}{:else}Creating
-  template{/if}
+  {#if params.templateId}Editing template
+  <a href="#/shop/{template.shop}">{template.shop}</a> /
+  <a href="#/shop/{template.shop}/template/{template.id}">{template.id}</a
+  >{:else}Creating template{/if}
 </h1>
 <div>
   <label>
