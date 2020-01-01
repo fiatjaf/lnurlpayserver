@@ -32,14 +32,12 @@ CREATE TABLE shop (
   backend text REFERENCES backend (id),
   key text NOT NULL DEFAULT md5(random()::text),
   message text,
+  webhook text,
 
   -- {"kind": "none"}
   -- {"kind": "sequential", "init": 0, "words": ["pluc", "plec", "plic"]})
   -- {"kind": "hmac", "interval": 5, "key": "..."} (interval in minutes)
   verification jsonb NOT NULL DEFAULT '{"kind": "none"}',
-
-  webhook text,
-  telegram integer,
 
   CONSTRAINT verification_length CHECK (char_length(verification::text) < 300),
   CONSTRAINT verification_schema CHECK (

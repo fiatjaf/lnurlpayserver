@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/jmoiron/sqlx/types"
@@ -18,7 +20,7 @@ func NewInvoice(
 	price int64,
 	params map[string]string,
 	encodedMetadata string,
-) (invoice *Invoice, err error) {
+) (*Invoice, error) {
 	metadataHash := sha256.Sum256([]byte(encodedMetadata))
 	expirySeconds := 1800 // 30 minutes
 	preimage := make([]byte, 32)
@@ -29,12 +31,7 @@ func NewInvoice(
 	hash := sha256.Sum256(preimage)
 	hashStr := hex.EncodeToString(hash[:])
 
-	var backend Backend
-	err = pg.Get(&backend, `
-      SELECT backend.* FROM backend
-      INNER JOIN shop ON shop.backend = backend.id
-      WHERE shop.id = $1
-    `, shopId)
+	backend, err := BackendFromShop(shopId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get backend info to generate invoice: %w", err)
 	}
@@ -62,12 +59,60 @@ func NewInvoice(
 type Invoice struct {
 	Hash       string         `db:"hash" json:"hash"`
 	Preimage   string         `db:"preimage" json:"preimage"`
+	Shop       string         `db:"shop" json:"shop"`
 	Template   string         `db:"template" json:"template"`
 	Params     types.JSONText `db:"params" json:"params"`
 	AmountMsat int64          `db:"amount_msat" json:"amount_msat"`
 	Bolt11     string         `db:"bolt11" json:"bolt11"`
 	Creation   time.Time      `db:"creation" json:"creation"`
 	Payment    *time.Time     `db:"payment" json:"payment"`
+
+	backend *Backend
 }
 
-const INVOICEFIELDS = `hash, preimage, template, params, amount_msat, bolt11, creation, payment`
+const INVOICEFIELDS = `hash, preimage, template, shop, params, amount_msat, bolt11, creation, payment`
+
+func (inv *Invoice) Wait() {
+	if inv.backend == nil {
+		backend, err := BackendFromShop(inv.Shop)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get backend from invoice")
+			return
+		}
+		inv.backend = backend
+	}
+
+	paid := inv.backend.waitInvoicePaid(inv.Hash)
+	if !paid {
+		log.Debug().Interface("invoice", inv).
+			Msg("waited, but invoice wasn't paid")
+		return
+	}
+
+	_, err := pg.Exec(`
+      UPDATE invoice
+      SET payment = now()
+      WHERE hash = $1
+    `, inv.Hash)
+	if err != nil {
+		log.Error().Err(err).Interface("invoice", inv).
+			Msg("failed to mark invoice as paid")
+		return
+	}
+
+	var webhook string
+	err = pg.Get(&webhook, `
+      SELECT webhook
+      FROM shop
+      WHERE shop.id = $1
+    `, inv.Shop)
+	if err == nil {
+		jinv, _ := json.Marshal(inv)
+		_, err := http.Post(webhook, "application/json", bytes.NewBuffer(jinv))
+		if err != nil {
+			log.Warn().Err(err).Str("url", webhook).Msg("webhook error")
+		} else {
+			log.Info().Str("url", webhook).Msg("webhook dispatched")
+		}
+	}
+}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/fiatjaf/go-lnurl"
 	"github.com/gorilla/mux"
-	"github.com/kr/pretty"
 )
 
 func parseURLMiddleware(next http.Handler) http.Handler {
@@ -101,8 +100,7 @@ func lnurlPayValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pretty.Log(invoice.Bolt11)
-	pretty.Log(sa)
+	go invoice.Wait()
 
 	r.Header.Set("X-Invoice-Id", invoice.Hash)
 	json.NewEncoder(w).Encode(lnurl.LNURLPayResponse2{

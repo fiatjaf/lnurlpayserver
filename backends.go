@@ -24,6 +24,20 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+func BackendFromShop(shopId string) (*Backend, error) {
+	var backend Backend
+	err = pg.Get(&backend, `
+      SELECT backend.* FROM backend
+      INNER JOIN shop ON shop.backend = backend.id
+      WHERE shop.id = $1
+    `, shopId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend, nil
+}
+
 type Backend struct {
 	Id         string         `db:"id" json:"id"`
 	Kind       string         `db:"kind" json:"kind"`
