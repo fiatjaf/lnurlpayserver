@@ -162,20 +162,18 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 	// insert or update while also updating backend
 	_, err = txn.Exec(`
       INSERT INTO shop
-        (id, backend, message, verification, webhook, telegram)
-      VALUES ($1, $2, $3, $4, $5, $6)
+        (id, backend, message, verification, webhook)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (id) DO UPDATE SET
         backend = $2,
         message = $3,
         verification= $4,
         webhook = $5,
-        telegram = $6
     `, shop.Id,
 		shop.Backend,
 		sql.NullString{String: shop.Message, Valid: shop.Message != ""},
 		shop.Verification,
 		sql.NullString{String: shop.Webhook, Valid: shop.Webhook != ""},
-		sql.NullInt64{Int64: shop.Telegram, Valid: shop.Telegram != 0},
 	)
 	if err != nil {
 		log.Error().Err(err).Interface("shop", shop).Msg("failed to upsert shop")
