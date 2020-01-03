@@ -167,8 +167,8 @@ func setShop(w http.ResponseWriter, r *http.Request) {
       ON CONFLICT (id) DO UPDATE SET
         backend = $2,
         message = $3,
-        verification= $4,
-        webhook = $5,
+        verification = $4,
+        webhook = $5
     `, shop.Id,
 		shop.Backend,
 		sql.NullString{String: shop.Message, Valid: shop.Message != ""},

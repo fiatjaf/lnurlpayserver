@@ -34,7 +34,7 @@ func (ss DelimitedStringArray) Value() (driver.Value, error) {
 
 var fiatPrices = cmap.New()
 
-func getSatoshisPer(currency string) (int64, error) {
+func getSatoshisPer(currency string) (float64, error) {
 	now := time.Now()
 
 	// first check cache
@@ -46,7 +46,7 @@ func getSatoshisPer(currency string) (int64, error) {
 		} else {
 			// use this
 			price, _ := fiatPrices.Get(currency + ":price")
-			return int64(float64(100000000) / float64(price.(int64))), nil
+			return float64(100000000) / price.(float64), nil
 		}
 	}
 
@@ -65,7 +65,7 @@ func getSatoshisPer(currency string) (int64, error) {
 	}
 
 	sprice := gjson.ParseBytes(b).Get("result.XXBTZ" + cur + ".c.0").String()
-	price, err := strconv.ParseInt(sprice, 10, 64)
+	price, err := strconv.ParseFloat(sprice, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -75,7 +75,7 @@ func getSatoshisPer(currency string) (int64, error) {
 		currency + ":time":  now.Unix(),
 	})
 
-	return int64(float64(100000000) / float64(price)), nil
+	return float64(100000000) / price, nil
 }
 
 func paramsToInterface(params map[string]string) map[string]interface{} {

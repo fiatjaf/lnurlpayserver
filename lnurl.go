@@ -59,6 +59,7 @@ func lnurlPayParams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debug().Int64("min", min).Int64("max", max).Msg("prices")
 	json.NewEncoder(w).Encode(lnurl.LNURLPayResponse1{
 		Tag:             "payRequest",
 		Callback:        strings.Replace(t.MakeURL(params), "/p/", "/v/", 1),

@@ -143,11 +143,9 @@ func (t *Template) GetPrices(params map[string]string) (min int64, max int64, er
 	if !ok1 || !ok2 {
 		return 0, 0, fmt.Errorf("either min or max is not a number: %v", values)
 	}
-	min = int64(fmin)
-	max = int64(fmax)
 
 	// convert to satoshis
-	var satoshis int64 = 1000
+	var satoshis float64 = 1
 	if t.Currency != "sat" {
 		satoshis, err = getSatoshisPer(t.Currency)
 		if err != nil {
@@ -155,7 +153,7 @@ func (t *Template) GetPrices(params map[string]string) (min int64, max int64, er
 		}
 	}
 
-	return min * satoshis, max * satoshis, nil
+	return int64(fmin * satoshis * 1000), int64(fmax * satoshis * 1000), nil
 }
 
 func (t *Template) EncodedMetadata(params map[string]string) string {

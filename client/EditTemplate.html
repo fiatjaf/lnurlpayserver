@@ -105,6 +105,19 @@
       template.query_params = template.query_params
     }
   }
+
+  function priceChanged(which) {
+    return e => {
+      if (template.min_price === template.max_price && which === 'min') {
+        template.min_price = e.target.value
+        template.max_price = e.target.value
+      } else if (which === 'min') {
+        template.min_price = e.target.value
+      } else if (which === 'max') {
+        template.max_price = e.target.value
+      }
+    }
+  }
 </script>
 
 <h1>
@@ -173,8 +186,12 @@ Color: {{color}}
     </select>
   </label>
   <label>
-    price (lua expression):
-    <input bind:value="{template.min_price}" placeholder="quantity * 10000" />
+    min price (lua expression): <input value={template.min_price}
+    on:change={priceChanged('min')} placeholder="quantity * 10000" />
+  </label>
+  <label>
+    max price (lua expression): <input value={template.max_price}
+    on:change={priceChanged('max')} placeholder="quantity * 10000" />
   </label>
   <button on:click="{save}">Save</button>
 </div>
