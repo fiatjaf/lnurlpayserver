@@ -39,6 +39,16 @@ func main() {
 		log.Fatal().Err(err).Msg("couldn't connect to postgres")
 	}
 
+	// run check/cleanup tasks on start
+	// and then every 30 minutes
+	go func() {
+		for {
+			checkOldInvoices()
+			cleanupInvoices()
+			time.Sleep(30 * time.Minute)
+		}
+	}()
+
 	// files
 	assets := &assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, Prefix: "/public/"}
 	indexhtml := MustAsset("public/index.html")
