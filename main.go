@@ -10,6 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 )
 
@@ -73,8 +74,14 @@ func main() {
 	basemux.PathPrefix("/shop/").Handler(apimux)
 	basemux.PathPrefix("/lnurl/").Handler(lnurlmux)
 
+	handler := cors.New(cors.Options{
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
+		AllowCredentials: true,
+	}).Handler(basemux)
+
 	srv := &http.Server{
-		Handler:      basemux,
+		Handler:      handler,
 		Addr:         s.Host + ":" + s.Port,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,

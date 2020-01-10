@@ -182,7 +182,7 @@ func setShop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// key will be created automatically if shop is new
-	if shop.Key != "" {
+	if shop.Key == "" {
 		err = txn.Get(&shop.Key, `SELECT key FROM shop WHERE id = $1`, shop.Id)
 		if err != nil {
 			log.Error().Err(err).Str("shop", shop.Id).Msg("got no key for shop")

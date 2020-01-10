@@ -67,24 +67,9 @@ func (b *Backend) GetId() error {
 }
 
 func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry int) (bolt11 string, err error) {
-	defer func(prevTransport http.RoundTripper) {
-		http.DefaultClient.Transport = prevTransport
-	}(http.DefaultClient.Transport)
-
 	conn := b.Conn()
-
-	if conn.Get("cert").Exists() {
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM([]byte(conn.Get("cert").String()))
-
-		http.DefaultClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{RootCAs: caCertPool},
-		}
-	} else {
-		http.DefaultClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-	}
+	log.Debug().Interface("conn", conn.String()).Int64("msatoshi", msatoshi).
+		Msg("making invoice")
 
 	hexh := hex.EncodeToString(h[:])
 	b64h := base64.StdEncoding.EncodeToString(h[:])
@@ -92,9 +77,10 @@ func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry
 	switch b.Kind {
 	case "spark":
 		spark := &lightning.Client{
-			SparkURL:    conn.Get("endpoint").String(),
-			SparkToken:  conn.Get("key").String(),
-			CallTimeout: time.Second * 3,
+			SparkURL:              conn.Get("endpoint").String(),
+			SparkToken:            conn.Get("key").String(),
+			CallTimeout:           time.Second * 3,
+			DontCheckCertificates: !conn.Get("cert").Exists(), /* don't check if not */
 		}
 		hash := sha256.Sum256(preimage)
 		inv, err := spark.CallNamed("lnurlinvoice",
@@ -110,6 +96,23 @@ func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry
 		return inv.Get("bolt11").String(), nil
 
 	case "lnd":
+		// don't check certificates when not provided
+		defer func(prevTransport http.RoundTripper) {
+			http.DefaultClient.Transport = prevTransport
+		}(http.DefaultClient.Transport)
+		if conn.Get("cert").Exists() {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM([]byte(conn.Get("cert").String()))
+
+			http.DefaultClient.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: caCertPool},
+			}
+		} else {
+			http.DefaultClient.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+
 		body, _ := sjson.Set("{}", "description_hash", b64h)
 		body, _ = sjson.Set(body, "value", msatoshi/1000)
 		body, _ = sjson.Set(body, "preimage", base64.StdEncoding.EncodeToString(preimage))
@@ -137,9 +140,41 @@ func (b Backend) MakeInvoice(msatoshi int64, h [32]byte, preimage []byte, expiry
 		}
 
 		return gjson.ParseBytes(b).Get("payment_request").String(), nil
-	}
+	case "lntxbot":
+		key := conn.Get("key").String()
 
-	return "", errors.New("unsupported lightning server kind: " + b.Kind)
+		body, _ := sjson.Set("{}", "description_hash", hexh)
+		body, _ = sjson.Set(body, "amt", strconv.FormatInt(msatoshi/1000, 10))
+		body, _ = sjson.Set(body, "preimage", hex.EncodeToString(preimage))
+
+		req, err := http.NewRequest("POST",
+			"https://lntxbot.bigsun.xyz/addinvoice",
+			bytes.NewBufferString(body),
+		)
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", key)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		inv := gjson.ParseBytes(b)
+		if inv.Get("error").Bool() {
+			return "", fmt.Errorf("Call to lntxbot failed: %s",
+				inv.Get("message").String())
+		}
+
+		return inv.Get("pay_req").String(), nil
+	default:
+		return "", errors.New("unsupported lightning server kind: " + b.Kind)
+	}
 }
 
 func (backend Backend) waitInvoicePaid(hash string) bool {
@@ -186,9 +221,10 @@ func (backend *Backend) waitInvoice(ctx context.Context, hash string) bool {
 		switch backend.Kind {
 		case "spark":
 			spark := &lightning.Client{
-				SparkURL:    conn.Get("endpoint").String(),
-				SparkToken:  conn.Get("key").String(),
-				CallTimeout: time.Minute * 15,
+				SparkURL:              conn.Get("endpoint").String(),
+				SparkToken:            conn.Get("key").String(),
+				CallTimeout:           time.Minute * 15,
+				DontCheckCertificates: !conn.Get("cert").Exists(), /* don't check if not */
 			}
 			_, err := spark.Call("waitinvoice", "lnurlpayserver/"+hash[:5])
 			if err != nil {
@@ -265,6 +301,120 @@ func (backend *Backend) waitInvoice(ctx context.Context, hash string) bool {
 			}
 
 			return true
+		case "lntxbot":
+			key := conn.Get("key").String()
+
+			req, err := http.NewRequest("GET",
+				"https://lntxbot.bigsun.xyz/invoicestatus/"+hash,
+				nil,
+			)
+			if err != nil {
+				logger.Warn().Err(err).Msg("error on lntxbot invoicestatus")
+				return false
+			}
+			req.Header.Set("Authorization", key)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				logger.Warn().Err(err).Msg("error on lntxbot invoicestatus")
+				return false
+			}
+			if resp.StatusCode >= 300 {
+				logger.Warn().Err(err).Msg("error on lntxbot invoicestatus")
+				return false
+			}
+
+			defer resp.Body.Close()
+			b, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				logger.Warn().Err(err).Msg("error on lntxbot invoicestatus")
+				return false
+			}
+
+			inv := gjson.ParseBytes(b)
+			if inv.Get("error").Bool() {
+				logger.Warn().Err(err).Str("message", inv.Get("message").String()).
+					Msg("error on lntxbot invoicestatus")
+				return false
+			}
+
+			return inv.Get("preimage").String() != ""
+		default:
+			return false
 		}
+	}
+}
+
+func (backend Backend) checkInvoice(hash string) bool {
+	conn := backend.Conn()
+
+	switch backend.Kind {
+	case "spark":
+		spark := &lightning.Client{
+			SparkURL:              conn.Get("endpoint").String(),
+			SparkToken:            conn.Get("key").String(),
+			CallTimeout:           time.Second * 10,
+			DontCheckCertificates: !conn.Get("cert").Exists(), /* don't check if not */
+		}
+		_, err := spark.Call("waitinvoice", "lnurlpayserver/"+hash[:5])
+		if err != nil {
+			return false
+		}
+		return true
+	case "lnd":
+		endpoint := conn.Get("endpoint").String()
+		macaroon := conn.Get("macaroon").String()
+
+		req, err := http.NewRequest("GET", endpoint+"/v1/invoice/"+hash, nil)
+		if err != nil {
+			return false
+		}
+		req.Header.Set("Grpc-Metadata-macaroon", macaroon)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		if resp.StatusCode >= 300 {
+			return false
+		}
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false
+		}
+		invdata := gjson.ParseBytes(b)
+		if invdata.Get("settled").Bool() {
+			return true
+		}
+		return false
+	case "lntxbot":
+		key := conn.Get("key").String()
+
+		req, err := http.NewRequest("GET",
+			"https://lntxbot.bigsun.xyz/invoicestatus/"+hash+"?wait=false",
+			nil,
+		)
+		if err != nil {
+			return false
+		}
+		req.Header.Set("Authorization", key)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		if resp.StatusCode >= 300 {
+			return false
+		}
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false
+		}
+		inv := gjson.ParseBytes(b)
+		if inv.Get("error").Bool() {
+			return false
+		}
+		return inv.Get("preimage").String() != ""
+	default:
+		return false
 	}
 }

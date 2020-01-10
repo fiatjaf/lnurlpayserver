@@ -72,7 +72,7 @@ type Invoice struct {
 
 const INVOICEFIELDS = `hash, preimage, template, shop, params, amount_msat, bolt11, creation, payment`
 
-func (inv *Invoice) Wait() {
+func (inv Invoice) Wait() {
 	if inv.backend == nil {
 		backend, err := BackendFromShop(inv.Shop)
 		if err != nil {
@@ -89,6 +89,28 @@ func (inv *Invoice) Wait() {
 		return
 	}
 
+	inv.markAsPaid()
+	inv.sendWebhook()
+}
+
+func (inv Invoice) Check() {
+	if inv.backend == nil {
+		backend, err := BackendFromShop(inv.Shop)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get backend from invoice")
+			return
+		}
+		inv.backend = backend
+	}
+
+	paid := inv.backend.checkInvoice(inv.Hash)
+	if paid {
+		inv.markAsPaid()
+		inv.sendWebhook()
+	}
+}
+
+func (inv Invoice) markAsPaid() {
 	_, err := pg.Exec(`
       UPDATE invoice
       SET payment = now()
@@ -99,7 +121,9 @@ func (inv *Invoice) Wait() {
 			Msg("failed to mark invoice as paid")
 		return
 	}
+}
 
+func (inv Invoice) sendWebhook() {
 	var webhook string
 	err = pg.Get(&webhook, `
       SELECT webhook

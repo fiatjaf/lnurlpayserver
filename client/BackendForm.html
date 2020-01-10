@@ -21,6 +21,7 @@
     <select bind:value="{backend.kind}" on:change="{cleanupBackend}">
       <option>spark</option>
       <option>lnd</option>
+      <option>lntxbot</option>
     </select>
   </label>
   {#if backend.kind == 'spark'}
