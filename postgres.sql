@@ -77,9 +77,11 @@ CREATE TABLE template (
   CONSTRAINT image_datauri CHECK (
     CASE WHEN image IS NOT NULL
       THEN (
-        substring(image from '.*,') IN (
-          'data:image/jpeg;base64,'
-          'data:image/png;base64,'
+        substring(image from '[^,]*,') = ANY(
+          ARRAY[
+            'data:image/jpeg;base64,',
+            'data:image/png;base64,'
+          ]
         )
       )
       ELSE true
