@@ -1,8 +1,9 @@
 lnurlpayserver: $(shell find . -name "*.go") bindata.go
 	go build
 
-public/bundle.js: $(shell find ./client)
-	./node_modules/.bin/rollup -c rollup.config.js
+public: $(shell find ./client)
+	mkdir -p public
+	./node_modules/.bin/preact build --src ./client --dest ./public/ --no-prerender
 
-bindata.go: public/bundle.js public/index.html public/global.css
+bindata.go: public
 	go-bindata -o bindata.go public/...

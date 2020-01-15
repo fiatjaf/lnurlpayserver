@@ -1,11 +1,12 @@
 package main
 
 import (
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
-	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
@@ -50,16 +51,24 @@ func main() {
 	}()
 
 	// files
-	assets := &assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, Prefix: "/public/"}
 	indexhtml := MustAsset("public/index.html")
 
 	// routers
 	basemux := mux.NewRouter()
-	basemux.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(assets)))
-	basemux.Path("/").Methods("GET").HandlerFunc(
+
+	staticmux := mux.NewRouter()
+	staticmux.PathPrefix("/").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("Content-Type", "text/html")
-			w.Write(indexhtml)
+			asset, err := Asset(filepath.Join("public", r.URL.Path[1:]))
+			mimetype := "text/html"
+			if err != nil {
+				asset = indexhtml
+			} else {
+				mimetype = mime.TypeByExtension(filepath.Ext(r.URL.Path))
+			}
+
+			w.Header().Add("Content-Type", mimetype)
+			w.Write(asset)
 		},
 	)
 
@@ -71,18 +80,19 @@ func main() {
 	apimux := mux.NewRouter()
 	apimux.Use(allJSONMiddleware)
 	apimux.Use(authMiddleware)
-	apimux.Path("/shop/{shop}").Methods("GET").HandlerFunc(getShop)
-	apimux.Path("/shop/{shop}").Methods("PUT").HandlerFunc(setShop)
-	apimux.Path("/shop/{shop}/templates").Methods("GET").HandlerFunc(listTemplates)
-	apimux.Path("/shop/{shop}/template/{tpl}").Methods("PUT").HandlerFunc(setTemplate)
-	apimux.Path("/shop/{shop}/template/{tpl}").Methods("DELETE").HandlerFunc(deleteTemplate)
-	apimux.Path("/shop/{shop}/template/{tpl}").Methods("GET").HandlerFunc(getTemplate)
-	apimux.Path("/shop/{shop}/template/{tpl}/lnurl").Methods("GET").HandlerFunc(getLNURL)
-	apimux.Path("/shop/{shop}/invoices").Methods("GET").HandlerFunc(listInvoices)
-	apimux.Path("/shop/{shop}/invoice/{hash}").Methods("GET").HandlerFunc(getInvoice)
+	apimux.Path("/api/shop/{shop}").Methods("GET").HandlerFunc(getShop)
+	apimux.Path("/api/shop/{shop}").Methods("PUT").HandlerFunc(setShop)
+	apimux.Path("/api/shop/{shop}/templates").Methods("GET").HandlerFunc(listTemplates)
+	apimux.Path("/api/shop/{shop}/template/{tpl}").Methods("PUT").HandlerFunc(setTemplate)
+	apimux.Path("/api/shop/{shop}/template/{tpl}").Methods("DELETE").HandlerFunc(deleteTemplate)
+	apimux.Path("/api/shop/{shop}/template/{tpl}").Methods("GET").HandlerFunc(getTemplate)
+	apimux.Path("/api/shop/{shop}/template/{tpl}/lnurl").Methods("GET").HandlerFunc(getLNURL)
+	apimux.Path("/api/shop/{shop}/invoices").Methods("GET").HandlerFunc(listInvoices)
+	apimux.Path("/api/shop/{shop}/invoice/{hash}").Methods("GET").HandlerFunc(getInvoice)
 
-	basemux.PathPrefix("/shop/").Handler(apimux)
+	basemux.PathPrefix("/api/").Handler(apimux)
 	basemux.PathPrefix("/lnurl/").Handler(lnurlmux)
+	basemux.PathPrefix("/").Handler(staticmux)
 
 	handler := cors.New(cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"},

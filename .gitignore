@@ -1,4 +1,4 @@
-public/bundle.*
+public/*
 *.env
 *.swo
 *.swp
