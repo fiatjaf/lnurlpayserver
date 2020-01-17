@@ -176,14 +176,12 @@ export default class CreateShop extends Component {
   submitShop = e => {
     e.preventDefault()
     const state = this.state
-    if (
-      !state.shopBackEnd ||
-      !state.shopEndpoint ||
-      !state.shopKey ||
-      !state.shopMacaroon
-    ) {
-      return
-    }
+
+    if (!state.shopBackEnd) return
+    if (state.shopBackEnd === 'spark' && !state.shopEndpoint) return
+    if (state.shopBackEnd === 'lnd' && !state.shopMacaroon) return
+    if (state.shopBackEnd === 'lntxbot' && !state.shopInvoiceKey) return
+
     const backend = {kind: 'lnd', connection: {}}
     const shop = {verification: {}}
 

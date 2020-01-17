@@ -39,7 +39,7 @@ func authMiddleware(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-		} else if r.Method == "PUT" && len(strings.Split(r.URL.Path, "/")) == 3 {
+		} else if r.Method == "PUT" && len(strings.Split(r.URL.Path, "/")) == 4 {
 			// creating a shop
 			next.ServeHTTP(w, r)
 			return
