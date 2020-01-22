@@ -45,7 +45,7 @@ export default class Template extends Component {
     this.setState({[params]: [...this.state[params], '']})
   }
 
-  submitTemplate = () => {
+  submitTemplate = async () => {
     event.preventDefault()
     const template = this.state
     template.path_params = template.path_params
@@ -63,22 +63,18 @@ export default class Template extends Component {
     const options = {
       method: 'PUT',
       body: JSON.stringify(template),
-      headers:
-        this.props.shop_id && this.props.template_id
-          ? {Authorization: 'Basic ' + this.state.auth}
-          : {}
+      headers: {'Authorization': 'Basic ' + this.state.auth}
     }
-    fetch(`/api/shop/${template.shop}/template/${template.id}`, options)
-      .then(res => res.json())
-      .then(() => route(`/shop/${this.state.shop}`))
+    await fetch(`/api/shop/${this.props.shop_id}/template/${template.id}`, options)
       .catch(err => console.error(err))
+    return route(`/shop/${this.state.shop}`)
   }
 
   // gets called when this route is navigated to
   componentDidMount = async () => {
-    if (this.props.shop_id && this.props.template_id) {
-      const id = this.props.shop_id
-      const auth = await idb.getShopToken(id)
+    const id = this.props.shop_id
+    const auth = await idb.getShopToken(id)
+    if (this.props.template_id) {
       const options = {
         method: 'GET',
         headers: {Authorization: 'Basic ' + auth}
@@ -91,16 +87,15 @@ export default class Template extends Component {
       if (data.error) {
         throw new Error(data.error)
       }
-      console.log(data)
       this.setState({...data, loading: !this.state.loading, auth})
     } else {
-      this.setState({loading: !this.state.loading})
+      this.setState({loading: !this.state.loading, shop: this.props.shop_id, auth})
     }
   }
 
   // Note: `user` comes from the URL, courtesy of our router
   render(
-    {shop_id, template_id},
+    {template_id},
     {
       id,
       description,
