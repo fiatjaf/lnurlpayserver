@@ -7,3 +7,8 @@ public: $(shell find ./client)
 
 bindata.go: public
 	go-bindata -o bindata.go public/...
+
+deploy: lnurlpayserver
+	ssh root@nusakan-58 'systemctl stop lnurlpayserver'
+	scp lnurlpayserver nusakan-58:lnurlpayserver/lnurlpayserver
+	ssh root@nusakan-58 'systemctl start lnurlpayserver'

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/itchyny/gojq"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/tidwall/gjson"
 )
@@ -78,8 +80,7 @@ func getSatoshisPer(currency string) (float64, error) {
 	return float64(100000000) / price, nil
 }
 
-func paramsToInterface(params map[string]string) map[string]interface{} {
-	res := make(map[string]interface{})
+func paramsToJQVars(params map[string]string) (names []string, values []interface{}) {
 	for k, str := range params {
 		var v interface{}
 
@@ -88,7 +89,47 @@ func paramsToInterface(params map[string]string) map[string]interface{} {
 			v = str
 		}
 
-		res[k] = v
+		names = append(names, k)
+		values = append(values, v)
 	}
-	return res
+	return
+}
+
+func runJQPrice(
+	code string,
+	names []string,
+	values []interface{},
+) (res float64, err error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return 0, nil
+	}
+
+	query, err := gojq.Parse(code)
+	if err != nil {
+		return
+	}
+
+	program, err := gojq.Compile(query, names...)
+	if err != nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	iter := program.RunWithContext(ctx, nil, values...)
+	v, ok := iter.Next()
+	if !ok {
+		return 0, errors.New("nothing returned")
+	}
+	if err, ok := v.(error); ok {
+		return 0, err
+	}
+
+	if price, ok := v.(float64); !ok {
+		return 0, errors.New("result is not a number")
+	} else {
+		return price, nil
+	}
 }

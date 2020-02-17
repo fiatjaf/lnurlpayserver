@@ -10,8 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aarzilli/golua/lua"
-	"github.com/fiatjaf/lunatico"
 	"github.com/hoisie/mustache"
 )
 
@@ -124,24 +122,13 @@ func (t Template) MakeInvoice(
 }
 
 func (t *Template) GetPrices(params map[string]string) (min int64, max int64, err error) {
+	names, values := paramsToJQVars(params)
+
 	// calculate raw prices
-	L := lua.NewState()
-	defer L.Close()
-	L.OpenLibs()
-	lunatico.SetGlobals(L, paramsToInterface(params))
-	err = L.DoString("min = " + t.MinPrice)
-	if err != nil {
-		return 0, 0, fmt.Errorf("'min' calculation failed on '%s': %w", t.MinPrice, err)
-	}
-	err = L.DoString("max = " + t.MaxPrice)
-	if err != nil {
-		return 0, 0, fmt.Errorf("'max' calculation failed on '%s': %w", t.MaxPrice, err)
-	}
-	values := lunatico.GetGlobals(L, "min", "max")
-	fmin, ok1 := values["min"].(float64)
-	fmax, ok2 := values["min"].(float64)
-	if !ok1 || !ok2 {
-		return 0, 0, fmt.Errorf("either min or max is not a number: %v", values)
+	fmin, err1 := runJQPrice(t.MinPrice, names, values)
+	fmax, err2 := runJQPrice(t.MaxPrice, names, values)
+	if err1 != nil || err2 != nil {
+		return 0, 0, fmt.Errorf("min: %w, max: %w", err1, err2)
 	}
 
 	// convert to satoshis
